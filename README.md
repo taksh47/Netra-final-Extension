@@ -18,4 +18,4 @@ Netra is a Chrome Extension designed to help Blind and Visually Impaired users n
 How to Use
 Open Settings:** `Alt + Shift + N`
 Trigger Action:** `Alt + [Key]` (e.g., `Alt + R`)
-Record New Shortcut:** Focus on a button and press `Shift + Alt + [Key]`.
+Record New Shortcut: Focus on a button and press `Shift + Alt + [Key]`.
