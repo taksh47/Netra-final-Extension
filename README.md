@@ -6,8 +6,8 @@ Netra is a Chrome Extension designed to help Blind and Visually Impaired users n
    Universal Shortcuts:** Works on Windows (`Alt`) and Mac (`Option`).
    Self-Learning:** Press `Shift + Alt + Key` to assign a shortcut to ANY button on ANY website.
    Screen Reader Support: Fully compatible with NVDA (Windows) and VoiceOver (Mac).
-   Bulletproof Audio:** Built-in "Force Wake" engine ensures voice feedback never fails.
-   Privacy First:** No data is sent to the cloud; everything stays on your browser.
+   Bulletproof Audio: Built-in "Force Wake" engine ensures voice feedback never fails.
+   Privacy First: No data is sent to the cloud; everything stays on your browser.
 
  Installation
 1.  Download this repository.
