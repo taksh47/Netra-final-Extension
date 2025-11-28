@@ -1,5 +1,13 @@
-// content.js - FINAL UNIVERSAL VERSION
+// content.js - SELF-HEALING VERSION
 
+// --- SAFETY CHECK (Prevent Double Loading) ---
+if (window.hasNetraRun) {
+  // If Netra is already running here, stop. This prevents echo.
+  throw new Error("Netra already loaded");
+}
+window.hasNetraRun = true;
+
+// --- CONFIGURATION ---
 const defaultShortcuts = {
   'red':    { element: '#btn-red',    char: 'r' },
   'orange': { element: '#btn-orange', char: 'o' },
@@ -13,87 +21,81 @@ const defaultShortcuts = {
 };
 
 let keyMap = {}; 
-let liveRegion = null; // Bridge for Screen Readers
+let liveRegion = null; 
+
+// --- SMART SITE ID ---
+function getSiteID() {
+  if (window.location.hostname && window.location.hostname !== "") {
+    return window.location.hostname;
+  }
+  return window.location.pathname;
+}
+const currentSite = getSiteID();
 
 // --- LOAD SETTINGS ---
 function loadSettings() {
-  chrome.storage.sync.get(['userSettings'], (result) => {
-    const settings = result.userSettings || defaultShortcuts;
-    keyMap = {};
-    for (const [action, config] of Object.entries(settings)) {
-      if (config.char && config.element) {
-        const shortcutId = `alt+${config.char.toLowerCase()}`;
-        keyMap[shortcutId] = { action: action, element: config.element };
+  // Catch errors if extension context is invalid (The Zombie Check)
+  try {
+    chrome.storage.sync.get(['userSettings', 'siteMemories'], (result) => {
+      if (chrome.runtime.lastError) return; // Stop if broken
+
+      const globalSettings = result.userSettings || defaultShortcuts;
+      const allSiteMemories = result.siteMemories || {};
+      const thisPageMemory = allSiteMemories[currentSite] || {};
+
+      keyMap = {};
+
+      for (const [action, config] of Object.entries(globalSettings)) {
+        if (config.char) {
+          const shortcutId = `alt+${config.char.toLowerCase()}`;
+          keyMap[shortcutId] = { action: action, element: config.element };
+        }
       }
-    }
-  });
+
+      for (const [char, selector] of Object.entries(thisPageMemory)) {
+          const shortcutId = `alt+${char}`;
+          keyMap[shortcutId] = { action: "Custom Action", element: selector };
+      }
+    });
+  } catch (e) {
+    console.log("Netra: Connection lost. Waiting for auto-heal.");
+  }
 }
 
-chrome.storage.onChanged.addListener((changes) => {
-  if (changes.userSettings) {
-    loadSettings();
-    speak("Settings updated");
-  }
-});
+// Reload listener with Error Catching
+try {
+  chrome.storage.onChanged.addListener((changes) => {
+    if (changes.userSettings || changes.siteMemories) {
+      loadSettings();
+      speak("Settings updated");
+    }
+  });
+} catch (e) {}
 
-// --- 1. SETUP SCREEN READER BRIDGE ---
+// --- AUDIO & HELPERS ---
 function setupLiveRegion() {
   if (document.getElementById('netra-a11y-speaker')) return;
-
   liveRegion = document.createElement('div');
   liveRegion.id = 'netra-a11y-speaker';
-  
-  // Visually hidden but readable by NVDA/VoiceOver
-  liveRegion.style.position = 'absolute';
-  liveRegion.style.left = '-10000px';
-  liveRegion.style.width = '1px';
-  liveRegion.style.height = '1px';
-  liveRegion.style.overflow = 'hidden';
-  
+  liveRegion.style.cssText = 'position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden;';
   liveRegion.setAttribute('aria-live', 'assertive');
   liveRegion.setAttribute('role', 'alert');
-  
   document.body.appendChild(liveRegion);
 }
 
-// --- 2. SPEAK FUNCTION (Browser Audio + Screen Reader) ---
 function speak(text) {
-  // A. Trigger Browser Audio (Backup)
+  // Backup: Browser Voice
   if (window.speechSynthesis) {
     window.speechSynthesis.cancel();
     const msg = new SpeechSynthesisUtterance(text);
     window.speechSynthesis.speak(msg);
   }
-
-  // B. Trigger Screen Reader (Primary)
+  // Primary: Screen Reader
   if (!liveRegion) setupLiveRegion();
   liveRegion.textContent = ''; 
-  setTimeout(() => {
-    liveRegion.textContent = text;
-  }, 100); 
+  setTimeout(() => { liveRegion.textContent = text; }, 100); 
 }
 
-// --- 3. TRIGGER ACTION ---
-function triggerAction(config) {
-  const el = document.querySelector(config.element);
-  
-  if (!el) {
-    speak("Element not found on this page");
-    return;
-  }
-
-  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  const oldOutline = el.style.outline;
-  el.style.outline = '5px solid #00FF00';
-  setTimeout(() => el.style.outline = oldOutline, 500);
-
-  el.click();
-  el.focus(); 
-  
-  speak(`Triggering ${config.action}`);
-}
-
-// --- 4. RECORDING LOGIC ---
 function getUniqueSelector(el) {
   if (el.id) return `#${el.id}`;
   if (el.name) return `[name="${el.name}"]`;
@@ -102,41 +104,50 @@ function getUniqueSelector(el) {
   return el.tagName.toLowerCase();
 }
 
-function recordShortcut(char) {
-  const focusedEl = document.activeElement;
-  
-  if (!focusedEl || focusedEl === document.body) {
-    speak("Please focus on a button first to record");
+function triggerAction(config) {
+  const el = document.querySelector(config.element);
+  if (!el) {
+    speak("Element not found");
     return;
   }
-  
-  let actionToUpdate = null;
-  
-  // Read fresh settings
-  chrome.storage.sync.get(['userSettings'], (result) => {
-    const settings = result.userSettings || defaultShortcuts;
-    
-    for (const [action, config] of Object.entries(settings)) {
-      if (config.char === char) {
-        actionToUpdate = action;
-        break;
-      }
-    }
-
-    if (!actionToUpdate) {
-      speak(`No shortcut available for letter ${char}`);
-      return;
-    }
-
-    settings[actionToUpdate].element = getUniqueSelector(focusedEl);
-    
-    chrome.storage.sync.set({ userSettings: settings }, () => {
-      speak(`Saved. ${char.toUpperCase()} is assigned.`);
-    });
-  });
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  const oldOutline = el.style.outline;
+  el.style.outline = '5px solid #00FF00';
+  setTimeout(() => el.style.outline = oldOutline, 500);
+  el.click();
+  el.focus(); 
+  speak(`Triggering ${config.action}`);
 }
 
+function recordShortcut(char) {
+  const focusedEl = document.activeElement;
+  if (!focusedEl || focusedEl === document.body) {
+    speak("Focus on a button first");
+    return;
+  }
+  const selector = getUniqueSelector(focusedEl);
+
+  try {
+    chrome.storage.sync.get(['siteMemories'], (result) => {
+      let allMemories = result.siteMemories || {};
+      if (!allMemories[currentSite]) allMemories[currentSite] = {};
+      allMemories[currentSite][char] = selector;
+
+      chrome.storage.sync.set({ siteMemories: allMemories }, () => {
+          speak(`Saved. ${char.toUpperCase()} assigned.`);
+          loadSettings();
+      });
+    });
+  } catch(e) { speak("Extension updating. Please try again in 1 second."); }
+}
+
+// --- SAFE EVENT LISTENER ---
 document.addEventListener('keydown', (event) => {
+  // If the extension context is dead, don't run logic
+  try {
+    if (!chrome.runtime.id) return;
+  } catch(e) { return; }
+
   if (!event.altKey) return; 
 
   let char = '';
@@ -146,14 +157,12 @@ document.addEventListener('keydown', (event) => {
 
   const shortcutId = `alt+${char}`;
 
-  // MODE 1: RECORDING (Shift + Alt + Key)
   if (event.shiftKey) {
     event.preventDefault();
     recordShortcut(char);
     return;
   }
 
-  // MODE 2: TRIGGERING (Alt + Key)
   if (keyMap[shortcutId]) {
     event.preventDefault();
     event.stopPropagation();
@@ -161,5 +170,9 @@ document.addEventListener('keydown', (event) => {
   }
 }, true);
 
+// Initialize
 setupLiveRegion();
 loadSettings();
+
+// Announce we are back online (optional, good for debugging)
+console.log("Netra: Connected and Ready");

@@ -1,13 +1,17 @@
 {
   "manifest_version": 3,
   "name": "Netra - Universal Access",
-  "version": "5.0",
+  "version": "6.0",
   "description": "Accessibility tool for Government Portals with Universal Keyboard Shortcuts",
   "permissions": [
     "activeTab",
     "scripting",
-    "storage"
+    "storage",
+    "tabs"
   ],
+  "background": {
+    "service_worker": "background.js"
+  },
   "action": {
     "default_popup": "popup.html"
   },

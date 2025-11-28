@@ -1,4 +1,4 @@
-// popup.js - CLEAN UI & HELP
+// popup.js - CRASH PROOF VERSION
 
 const defaultShortcuts = {
   'red':    { element: '#btn-red',    char: 'r' },
@@ -14,25 +14,69 @@ const defaultShortcuts = {
 
 const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
 const modLabel = isMac ? 'Option' : 'Alt';
-let popupUtterance = null; 
+let liveRegion = null; 
 
 // --- UI BUILDER ---
 function buildUI(settings) {
   const tbody = document.getElementById('settings-body');
+  if (!tbody) return; // Safety check
   tbody.innerHTML = ''; 
 
-  Object.keys(settings).forEach(action => {
-    const config = settings[action];
-    const defChar = defaultShortcuts[action].char;
+  // 1. READ SHORTCUTS ROW (Clean White)
+  const readRow = document.createElement('tr');
+  readRow.innerHTML = `
+    <td><span class="color-dot" style="background:#4CAF50"></span>Read All</td>
+    <td>
+      <input type="text" value="(Reads list audio)" disabled 
+             style="background:#fff; border:1px solid #ddd; color:#555; border-radius:4px; font-style:italic;">
+    </td>
+    <td>
+      <div class="key-wrapper">
+        <span>Shift + </span>
+        <input type="text" class="key-input" value="?" disabled 
+               style="background:#fff; border:1px solid #ccc; color:#333; cursor:default;">
+      </div>
+    </td>
+    <td></td>
+  `;
+  tbody.appendChild(readRow);
+
+  // 2. TEACH MODE ROW (Clean White)
+  const teachRow = document.createElement('tr');
+  teachRow.innerHTML = `
+    <td><span class="color-dot" style="background:#2196F3"></span>Teach Mode</td>
+    <td>
+      <input type="text" value="(Focus on any button)" disabled 
+             style="background:#fff; border:1px solid #ddd; color:#555; border-radius:4px; font-style:italic;">
+    </td>
+    <td>
+      <div class="key-wrapper">
+        <span style="font-size:11px">Shift + ${modLabel} + </span>
+        <input type="text" class="key-input" value="Key" disabled 
+               style="background:#f9f9f9; border:1px dashed #999; color:#555;">
+      </div>
+    </td>
+    <td></td>
+  `;
+  tbody.appendChild(teachRow);
+
+  // 3. SHORTCUT ROWS (Iterate over DEFAULTS to prevent crashing)
+  Object.keys(defaultShortcuts).forEach(action => {
+    // Get saved config OR fallback to default
+    const savedConfig = settings[action] || defaultShortcuts[action];
     
-    // IF DEFAULT, SHOW BLANK
-    const isDefault = String(config.char).toLowerCase().trim() === String(defChar).toLowerCase().trim();
-    const displayChar = isDefault ? '' : config.char;
+    const defChar = defaultShortcuts[action].char;
+    const userChar = savedConfig.char || defChar;
+    const userElement = savedConfig.element || defaultShortcuts[action].element;
+
+    // Check if default
+    const isDefault = String(userChar).toLowerCase().trim() === String(defChar).toLowerCase().trim();
+    const displayChar = isDefault ? '' : userChar;
 
     const row = document.createElement('tr');
     row.innerHTML = `
       <td><span class="color-dot" style="background:${action === 'prev' || action === 'next' ? '#ccc' : action}"></span>${capitalize(action)}</td>
-      <td><input type="text" class="elm-input" data-action="${action}" value="${config.element}"></td>
+      <td><input type="text" class="elm-input" data-action="${action}" value="${userElement}"></td>
       <td>
         <div class="key-wrapper">
           <span>${modLabel} + </span>
@@ -43,6 +87,7 @@ function buildUI(settings) {
     `;
     tbody.appendChild(row);
   });
+  
   attachListeners();
 }
 
@@ -66,17 +111,33 @@ function saveSettings() {
   document.querySelectorAll('.elm-input').forEach(input => {
     const action = input.dataset.action;
     const keyInput = document.querySelector(`.key-input[data-action="${action}"]`);
-    const charToSave = keyInput.value.toLowerCase().trim() || defaultShortcuts[action].char;
-    settings[action] = { element: input.value, char: charToSave };
+    if(keyInput && defaultShortcuts[action]) {
+      const charToSave = keyInput.value.toLowerCase().trim() || defaultShortcuts[action].char;
+      settings[action] = { element: input.value, char: charToSave };
+    }
   });
   chrome.storage.sync.set({ userSettings: settings }, () => showStatus());
 }
 
+// --- SCREEN READER BRIDGE ---
+function setupLiveRegion() {
+  if (document.getElementById('netra-popup-speaker')) return;
+  liveRegion = document.createElement('div');
+  liveRegion.id = 'netra-popup-speaker';
+  liveRegion.style.cssText = 'position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden;';
+  liveRegion.setAttribute('aria-live', 'assertive');
+  liveRegion.setAttribute('role', 'alert');
+  document.body.appendChild(liveRegion);
+}
+
 function speak(text) {
+  if (!liveRegion) setupLiveRegion();
+  liveRegion.textContent = ''; 
+  setTimeout(() => { liveRegion.textContent = text; }, 50);
+
   if (window.speechSynthesis) {
     window.speechSynthesis.cancel();
     const msg = new SpeechSynthesisUtterance(text);
-    popupUtterance = msg; 
     window.speechSynthesis.speak(msg);
   }
 }
@@ -89,28 +150,48 @@ const triggerSaveAndSpeak = (action, newChar) => {
 
 const debouncedSave = debounce(saveSettings, 1000);
 
-// HELP BUTTON
-document.getElementById('btn-help').addEventListener('click', () => {
-  let speechText = "Here are your shortcuts. ";
+// --- READ SHORTCUTS LOGIC ---
+function readAllShortcuts() {
+  let speechText = `Global Read command is Shift plus Question mark. `;
+  speechText += `Teach Mode is Shift plus ${modLabel} plus any key. `;
+  speechText += "Here are your saved shortcuts. ";
+  
   document.querySelectorAll('.elm-input').forEach(input => {
     const action = input.dataset.action;
     const keyInput = document.querySelector(`.key-input[data-action="${action}"]`);
-    const activeChar = keyInput.value.toLowerCase().trim() || defaultShortcuts[action].char;
-    speechText += `${capitalize(action)} is ${modLabel} plus ${activeChar}. `;
+    
+    if (keyInput && defaultShortcuts[action]) {
+        const visibleValue = keyInput.value.toLowerCase().trim();
+        const activeChar = visibleValue !== "" ? visibleValue : defaultShortcuts[action].char;
+        speechText += `${capitalize(action)} is ${modLabel} plus ${activeChar}. `;
+    }
   });
+  
   speak(speechText);
+}
+
+const helpBtn = document.getElementById('btn-help');
+if(helpBtn) helpBtn.addEventListener('click', readAllShortcuts);
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === '?' || (e.shiftKey && e.key === '/')) {
+    readAllShortcuts();
+  }
 });
 
 // RESET BUTTON
-document.getElementById('btn-reset').addEventListener('click', () => {
-  if(confirm("Reset defaults?")) {
-    chrome.storage.sync.set({ userSettings: defaultShortcuts }, () => {
-      buildUI(defaultShortcuts);
-      speak("Settings reset");
-      showStatus();
+const resetBtn = document.getElementById('btn-reset');
+if(resetBtn) {
+    resetBtn.addEventListener('click', () => {
+      if(confirm("Reset all shortcuts to defaults?")) {
+        chrome.storage.sync.set({ userSettings: defaultShortcuts }, () => {
+          buildUI(defaultShortcuts);
+          speak("Settings reset");
+          showStatus();
+        });
+      }
     });
-  }
-});
+}
 
 function debounce(func, delay) {
   let timer;
@@ -122,8 +203,10 @@ function debounce(func, delay) {
 
 function showStatus() {
   const el = document.getElementById('status');
-  el.classList.add('show');
-  setTimeout(() => el.classList.remove('show'), 1500);
+  if(el) {
+      el.classList.add('show');
+      setTimeout(() => el.classList.remove('show'), 1500);
+  }
 }
 
 function testElement(action) {
@@ -145,6 +228,8 @@ function testElement(action) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  setupLiveRegion(); 
+  // Load settings with fallback to defaults to prevent empty screen
   chrome.storage.sync.get(['userSettings'], (res) => {
     const settings = res.userSettings || defaultShortcuts;
     buildUI(settings);

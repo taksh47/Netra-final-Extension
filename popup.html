@@ -4,13 +4,15 @@
   <meta charset="UTF-8">
   <title>Netra Shortcuts</title>
   <style>
-    body { width: 550px; font-family: 'Segoe UI', sans-serif; padding: 15px; background: #f9f9f9; color: #333; }
+    body { width: 580px; font-family: 'Segoe UI', sans-serif; padding: 15px; background: #f9f9f9; color: #333; }
     
+    /* Header */
     .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 2px solid #eee; padding-bottom: 10px; }
     h2 { margin: 0; font-size: 18px; }
     
     .btn-group { display: flex; gap: 10px; }
 
+    /* Buttons */
     .reset-btn { background: #ff4444; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;}
     .reset-btn:hover { background: #cc0000; }
 
@@ -20,13 +22,16 @@
     #status { font-weight: bold; color: green; opacity: 0; transition: opacity 0.3s; margin-right: auto; margin-left: 15px;}
     #status.show { opacity: 1; }
 
+    /* Table */
     table { width: 100%; background: white; border-collapse: separate; border-spacing: 0 8px; }
     th { text-align: left; font-size: 12px; color: #666; padding: 0 5px; }
     td { vertical-align: middle; padding: 0 5px; }
 
+    /* Inputs */
     input[type="text"] { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
     input:focus { border-color: #4CAF50; outline: none; }
 
+    /* Key Input */
     .key-input { 
       width: 50px; text-align: center; font-weight: bold; 
       background: #fff; border: 1px solid #ccc; color: #000;
@@ -34,6 +39,10 @@
     .key-wrapper { display: flex; align-items: center; gap: 5px; font-size: 13px; font-weight: bold; color: #555; }
     .test-btn { background: #4CAF50; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; }
     .color-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; }
+
+    /* Special Style for Teach Row */
+    .teach-row { background-color: #e3f2fd; font-weight: bold; }
+    .teach-row td { padding-top: 10px; padding-bottom: 10px; border-top: 1px solid #bbdefb; border-bottom: 1px solid #bbdefb; }
   </style>
 </head>
 <body>
@@ -50,14 +59,14 @@
   <table>
     <thead>
       <tr>
-        <th style="width: 20%">Action</th>
-        <th style="width: 45%">Element ID</th>
-        <th style="width: 20%">Shortcuts</th>
-        <th style="width: 15%">Test</th>
+        <th style="width: 25%">Action</th>
+        <th style="width: 40%">Element ID</th>
+        <th style="width: 25%">Shortcuts</th>
+        <th style="width: 10%">Test</th>
       </tr>
     </thead>
     <tbody id="settings-body">
-    </tbody>
+      </tbody>
   </table>
 
   <script src="popup.js"></script>
