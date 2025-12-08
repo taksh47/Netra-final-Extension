@@ -1,28 +1,22 @@
 {
   "manifest_version": 3,
   "name": "Netra - Universal Access",
-  "version": "6.0",
-  "description": "Accessibility tool for Government Portals with Universal Keyboard Shortcuts",
+  "version": "13.0",
+  "description": "Professional Accessibility Tool with Visual Teach Mode",
   "permissions": [
     "activeTab",
     "scripting",
     "storage",
     "tabs"
   ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
   "background": {
     "service_worker": "background.js"
   },
   "action": {
     "default_popup": "popup.html"
-  },
-  "commands": {
-    "_execute_action": {
-      "suggested_key": {
-        "default": "Alt+Shift+N",
-        "mac": "Alt+Shift+N" 
-      },
-      "description": "Open Netra Settings"
-    }
   },
   "content_scripts": [
     {

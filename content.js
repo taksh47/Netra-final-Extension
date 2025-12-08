@@ -1,178 +1,251 @@
-// content.js - SELF-HEALING VERSION
+// content.js - SAFETY CHECK & SOFT DELETE
 
-// --- SAFETY CHECK (Prevent Double Loading) ---
-if (window.hasNetraRun) {
-  // If Netra is already running here, stop. This prevents echo.
-  throw new Error("Netra already loaded");
+// 1. Context Safeguard
+if (window.netraLoaded) {
+    throw new Error("Netra: Already loaded on this page");
 }
-window.hasNetraRun = true;
+window.netraLoaded = true;
 
-// --- CONFIGURATION ---
-const defaultShortcuts = {
-  'red':    { element: '#btn-red',    char: 'r' },
-  'orange': { element: '#btn-orange', char: 'o' },
-  'yellow': { element: '#btn-yellow', char: 'y' },
-  'green':  { element: '#btn-green',  char: 'g' },
-  'blue':   { element: '#btn-blue',   char: 'b' },
-  'indigo': { element: '#btn-indigo', char: 'i' },
-  'violet': { element: '#btn-violet', char: 'v' },
-  'next':   { element: '#btn-next',   char: 'n' },
-  'prev':   { element: '#btn-prev',   char: 'p' }
+const isContextValid = () => {
+    try {
+        return !!chrome.runtime.id;
+    } catch (e) {
+        return false;
+    }
 };
 
-let keyMap = {}; 
-let liveRegion = null; 
+console.log("Netra: Loaded and ready.");
 
-// --- SMART SITE ID ---
-function getSiteID() {
-  if (window.location.hostname && window.location.hostname !== "") {
-    return window.location.hostname;
-  }
-  return window.location.pathname;
-}
-const currentSite = getSiteID();
+// --- STATE VARIABLES ---
+let isTeachMode = false;
+let shortcuts = {};
+let bannerEl = null;
+let pendingConfirm = null; // Tracks overwrite attempts
 
-// --- LOAD SETTINGS ---
-function loadSettings() {
-  // Catch errors if extension context is invalid (The Zombie Check)
-  try {
-    chrome.storage.sync.get(['userSettings', 'siteMemories'], (result) => {
-      if (chrome.runtime.lastError) return; // Stop if broken
-
-      const globalSettings = result.userSettings || defaultShortcuts;
-      const allSiteMemories = result.siteMemories || {};
-      const thisPageMemory = allSiteMemories[currentSite] || {};
-
-      keyMap = {};
-
-      for (const [action, config] of Object.entries(globalSettings)) {
-        if (config.char) {
-          const shortcutId = `alt+${config.char.toLowerCase()}`;
-          keyMap[shortcutId] = { action: action, element: config.element };
-        }
-      }
-
-      for (const [char, selector] of Object.entries(thisPageMemory)) {
-          const shortcutId = `alt+${char}`;
-          keyMap[shortcutId] = { action: "Custom Action", element: selector };
-      }
+// --- INITIAL LOAD ---
+if (isContextValid()) {
+    chrome.storage.sync.get(['userSettings'], (res) => {
+        updateShortcutsMap(res.userSettings);
     });
-  } catch (e) {
-    console.log("Netra: Connection lost. Waiting for auto-heal.");
-  }
+
+    chrome.storage.onChanged.addListener((changes) => {
+        if (changes.userSettings) {
+            updateShortcutsMap(changes.userSettings.newValue);
+        }
+    });
 }
 
-// Reload listener with Error Catching
-try {
-  chrome.storage.onChanged.addListener((changes) => {
-    if (changes.userSettings || changes.siteMemories) {
-      loadSettings();
-      speak("Settings updated");
-    }
-  });
-} catch (e) {}
+// --- LOGIC: MAP SHORTCUTS WITH IDs ---
+function updateShortcutsMap(settings) {
+    shortcuts = {};
+    if (!settings) return;
+    
+    const currentHost = window.location.hostname; 
 
-// --- AUDIO & HELPERS ---
-function setupLiveRegion() {
-  if (document.getElementById('netra-a11y-speaker')) return;
-  liveRegion = document.createElement('div');
-  liveRegion.id = 'netra-a11y-speaker';
-  liveRegion.style.cssText = 'position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden;';
-  liveRegion.setAttribute('aria-live', 'assertive');
-  liveRegion.setAttribute('role', 'alert');
-  document.body.appendChild(liveRegion);
+    // We use Object.entries so we can capture the 'id' (key) of each setting
+    Object.entries(settings).forEach(([id, item]) => {
+        // Only load if matches current site AND has a char assigned
+        if (item.char && item.element && currentHost.includes(item.url)) {
+            shortcuts[item.char.toLowerCase()] = { ...item, id: id };
+        }
+    });
+}
+
+// --- HELPER: NORMALIZE KEY CODE ---
+function getCodeChar(event) {
+    if (event.code.startsWith('Key')) return event.code.slice(3).toLowerCase(); 
+    if (event.code.startsWith('Digit')) return event.code.slice(5);
+    return null;
+}
+
+// --- UI: BANNER ---
+function createBanner() {
+    const banner = document.createElement('div');
+    banner.setAttribute('role', 'alert');
+    banner.setAttribute('aria-live', 'assertive');
+    banner.style.cssText = `
+        position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-200%);
+        background-color: #d93025; color: white; padding: 12px 24px;
+        border-radius: 50px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-weight: 600; font-size: 16px; letter-spacing: 0.5px;
+        z-index: 2147483647; display: flex; align-items: center; gap: 10px;
+        transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        pointer-events: none;
+    `;
+    banner.innerHTML = `<span>🔴</span><span>Teach Mode ON &bull; Tab to button & Press Key</span>`;
+    document.body.appendChild(banner);
+    return banner;
+}
+
+function toggleTeachMode(forceState) {
+    if (typeof forceState === 'boolean') {
+        isTeachMode = forceState;
+    } else {
+        isTeachMode = !isTeachMode;
+    }
+
+    if (!bannerEl) bannerEl = createBanner();
+
+    if (isTeachMode) {
+        bannerEl.style.transform = "translateX(-50%) translateY(0)";
+        document.body.style.cursor = "default";
+        speak("Teach Mode On");
+        pendingConfirm = null; // Reset any pending confirmations
+    } else {
+        bannerEl.style.transform = "translateX(-50%) translateY(-200%)";
+        document.body.style.cursor = "default";
+    }
 }
 
 function speak(text) {
-  // Backup: Browser Voice
-  if (window.speechSynthesis) {
+    if (!window.speechSynthesis) return;
     window.speechSynthesis.cancel();
     const msg = new SpeechSynthesisUtterance(text);
+    msg.rate = 1.1; 
     window.speechSynthesis.speak(msg);
-  }
-  // Primary: Screen Reader
-  if (!liveRegion) setupLiveRegion();
-  liveRegion.textContent = ''; 
-  setTimeout(() => { liveRegion.textContent = text; }, 100); 
 }
 
 function getUniqueSelector(el) {
-  if (el.id) return `#${el.id}`;
-  if (el.name) return `[name="${el.name}"]`;
-  if (el.getAttribute('aria-label')) return `[aria-label="${el.getAttribute('aria-label')}"]`;
-  if (el.className && typeof el.className === 'string') return `.${el.className.trim().split(/\s+/)[0]}`;
-  return el.tagName.toLowerCase();
+    if (el.id) return `#${el.id}`;
+    if (el.getAttribute('aria-label')) return `[aria-label="${el.getAttribute('aria-label')}"]`;
+    if (el.name) return `[name="${el.name}"]`;
+    if (el.className && typeof el.className === 'string' && el.className.trim() !== "") {
+        return `.${el.className.trim().split(/\s+/)[0]}`;
+    }
+    return el.tagName.toLowerCase();
 }
 
-function triggerAction(config) {
-  const el = document.querySelector(config.element);
-  if (!el) {
-    speak("Element not found");
-    return;
-  }
-  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  const oldOutline = el.style.outline;
-  el.style.outline = '5px solid #00FF00';
-  setTimeout(() => el.style.outline = oldOutline, 500);
-  el.click();
-  el.focus(); 
-  speak(`Triggering ${config.action}`);
-}
+// --- LOGIC: SAFETY CHECK SAVING ---
+function handleTeachInput(event) {
+    if (event.code === 'Escape') {
+        toggleTeachMode(false);
+        speak("Cancelled");
+        return;
+    }
 
-function recordShortcut(char) {
-  const focusedEl = document.activeElement;
-  if (!focusedEl || focusedEl === document.body) {
-    speak("Focus on a button first");
-    return;
-  }
-  const selector = getUniqueSelector(focusedEl);
+    const char = getCodeChar(event);
+    if (!char) return; 
 
-  try {
-    chrome.storage.sync.get(['siteMemories'], (result) => {
-      let allMemories = result.siteMemories || {};
-      if (!allMemories[currentSite]) allMemories[currentSite] = {};
-      allMemories[currentSite][char] = selector;
+    const el = document.activeElement;
+    if (!el || el === document.body) {
+        speak("Tab to a button first");
+        return;
+    }
 
-      chrome.storage.sync.set({ siteMemories: allMemories }, () => {
-          speak(`Saved. ${char.toUpperCase()} assigned.`);
-          loadSettings();
-      });
-    });
-  } catch(e) { speak("Extension updating. Please try again in 1 second."); }
-}
-
-// --- SAFE EVENT LISTENER ---
-document.addEventListener('keydown', (event) => {
-  // If the extension context is dead, don't run logic
-  try {
-    if (!chrome.runtime.id) return;
-  } catch(e) { return; }
-
-  if (!event.altKey) return; 
-
-  let char = '';
-  if (event.code.startsWith('Key')) char = event.code.slice(3).toLowerCase();
-  else if (event.code.startsWith('Digit')) char = event.code.slice(5);
-  else return;
-
-  const shortcutId = `alt+${char}`;
-
-  if (event.shiftKey) {
-    event.preventDefault();
-    recordShortcut(char);
-    return;
-  }
-
-  if (keyMap[shortcutId]) {
     event.preventDefault();
     event.stopPropagation();
-    triggerAction(keyMap[shortcutId]);
-  }
+
+    // --- SAFETY CHECK START ---
+    // If this key is already used AND we haven't confirmed yet
+    if (shortcuts[char] && pendingConfirm !== char) {
+        const oldName = shortcuts[char].label || "another button";
+        speak(`Option ${char.toUpperCase()} is already used for ${oldName}. Press again to replace it.`);
+        
+        // Flash Orange to warn
+        const oldOutline = el.style.outline;
+        el.style.outline = "4px solid #f1c40f"; 
+        setTimeout(() => el.style.outline = oldOutline, 800);
+        
+        pendingConfirm = char; // Set waiting state
+        return; 
+    }
+    // --- SAFETY CHECK END ---
+
+    // Proceeding to save (either no conflict, or confirmed)
+    pendingConfirm = null;
+
+    // Visual Feedback (Green)
+    const oldOutline = el.style.outline;
+    el.style.outline = "4px solid #2ecc71"; 
+    setTimeout(() => el.style.outline = oldOutline, 800);
+
+    const selector = getUniqueSelector(el);
+    const label = el.innerText || el.getAttribute('aria-label') || "Button";
+    const siteUrl = window.location.hostname; 
+
+    if (isContextValid()) {
+        chrome.storage.sync.get(['userSettings'], (res) => {
+            const settings = res.userSettings || {};
+            const newId = Date.now().toString();
+            
+            // SOFT DELETE LOGIC:
+            // Find if this char is used, and just clear the 'char' field
+            // This keeps the row in the table, but blank.
+            let replacedName = null;
+            
+            Object.keys(settings).forEach(id => {
+                if (settings[id].char === char && settings[id].url === siteUrl) {
+                    settings[id].char = ""; // Clear key, keep data
+                    replacedName = settings[id].label;
+                }
+            });
+
+            settings[newId] = {
+                char: char,
+                element: selector,
+                label: label,
+                url: siteUrl
+            };
+
+            chrome.storage.sync.set({ userSettings: settings }, () => {
+                if (replacedName) {
+                    speak(`Reassigned Option ${char.toUpperCase()} to new button.`);
+                } else {
+                    speak(`Saved.`);
+                }
+                toggleTeachMode(false);
+            });
+        });
+    } else {
+        alert("Please refresh page.");
+    }
+}
+
+// --- EXECUTE ---
+function executeShortcut(char) {
+    const config = shortcuts[char];
+    if (!config) return;
+
+    const el = document.querySelector(config.element);
+    if (el) {
+        speak(`Clicking ${config.label}`);
+        const oldOutline = el.style.outline;
+        el.style.outline = "4px solid #2ecc71";
+        el.click();
+        el.focus();
+        setTimeout(() => el.style.outline = oldOutline, 400);
+    } else {
+        speak("Button not found");
+    }
+}
+
+// --- LISTENER ---
+window.addEventListener('keydown', (event) => {
+    if (!isContextValid()) return;
+
+    if (event.code === 'KeyT' && event.shiftKey && event.altKey) {
+        event.preventDefault();
+        toggleTeachMode();
+        return;
+    }
+
+    if (isTeachMode) {
+        if (["Tab", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) {
+            return; 
+        }
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        handleTeachInput(event);
+        return;
+    }
+
+    if (event.altKey && !event.shiftKey && !event.ctrlKey) {
+        const char = getCodeChar(event); 
+        if (char && shortcuts[char]) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            executeShortcut(char);
+        }
+    }
 }, true);
-
-// Initialize
-setupLiveRegion();
-loadSettings();
-
-// Announce we are back online (optional, good for debugging)
-console.log("Netra: Connected and Ready");

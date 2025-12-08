@@ -2,73 +2,60 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Netra Shortcuts</title>
+  <title>Netra Config</title>
   <style>
-    body { width: 580px; font-family: 'Segoe UI', sans-serif; padding: 15px; background: #f9f9f9; color: #333; }
+    body { width: 800px; font-family: 'Segoe UI', sans-serif; padding: 15px; background: #f9f9f9; color: #333; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+    h2 { margin: 0; font-size: 18px; color: #2c3e50; }
     
-    /* Header */
-    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 2px solid #eee; padding-bottom: 10px; }
-    h2 { margin: 0; font-size: 18px; }
-    
-    .btn-group { display: flex; gap: 10px; }
-
-    /* Buttons */
-    .reset-btn { background: #ff4444; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;}
-    .reset-btn:hover { background: #cc0000; }
-
-    .help-btn { background: #2196F3; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;}
-    .help-btn:hover { background: #0b7dda; }
-
-    #status { font-weight: bold; color: green; opacity: 0; transition: opacity 0.3s; margin-right: auto; margin-left: 15px;}
-    #status.show { opacity: 1; }
-
-    /* Table */
-    table { width: 100%; background: white; border-collapse: separate; border-spacing: 0 8px; }
-    th { text-align: left; font-size: 12px; color: #666; padding: 0 5px; }
-    td { vertical-align: middle; padding: 0 5px; }
-
-    /* Inputs */
-    input[type="text"] { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
-    input:focus { border-color: #4CAF50; outline: none; }
-
-    /* Key Input */
-    .key-input { 
-      width: 50px; text-align: center; font-weight: bold; 
-      background: #fff; border: 1px solid #ccc; color: #000;
+    /* STATUS HIDDEN BY DEFAULT */
+    #status { 
+        color: #27ae60; 
+        font-weight: bold; 
+        opacity: 0; 
+        transition: opacity 0.3s ease;
     }
-    .key-wrapper { display: flex; align-items: center; gap: 5px; font-size: 13px; font-weight: bold; color: #555; }
-    .test-btn { background: #4CAF50; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; }
-    .color-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; }
+    #status.show { 
+        opacity: 1; 
+    }
 
-    /* Special Style for Teach Row */
-    .teach-row { background-color: #e3f2fd; font-weight: bold; }
-    .teach-row td { padding-top: 10px; padding-bottom: 10px; border-top: 1px solid #bbdefb; border-bottom: 1px solid #bbdefb; }
-  </style>
+    .btn-group { display: flex; gap: 10px; }
+    button { border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold; transition: 0.2s; }
+    .reset-btn { background: #ff4444; color: white; }
+    .help-btn { background: #2196F3; color: white; }
+    .add-row { background-color: #e8f5e9; cursor: pointer; transition: 0.2s; }
+    .add-row:hover { background-color: #c8e6c9; }
+    .add-cell { text-align: center; font-weight: bold; color: #2e7d32; padding: 10px !important; }
+    table { width: 100%; background: white; border-collapse: separate; border-spacing: 0; border: 1px solid #ddd; border-radius: 4px; }
+    th { text-align: left; font-size: 12px; color: #666; padding: 10px; background: #f1f1f1; border-bottom: 1px solid #ddd; }
+    td { padding: 8px; border-bottom: 1px solid #eee; vertical-align: middle; }
+    input[type="text"] { width: 90%; padding: 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 13px; }
+    .url-input { color: #2c3e50; background: #fff; } 
+    .key-wrapper { display: flex; align-items: center; gap: 3px; font-size: 12px; color: #666; font-weight: bold; }
+    .key-input { width: 30px !important; text-align: center; font-weight: bold; color: #000; }
+    .test-btn { background: #4CAF50; color: white; padding: 5px 10px; margin-right: 5px;}
+    .delete-btn { background: transparent; color: #999; font-size: 16px; padding: 0 5px; }
+</style>
 </head>
 <body>
-
   <div class="header">
     <h2>Netra Config</h2>
     <span id="status">Saved ✓</span>
     <div class="btn-group">
       <button id="btn-help" class="help-btn">🔊 Read Shortcuts</button>
-      <button id="btn-reset" class="reset-btn">Reset Defaults</button>
+      <button id="btn-reset" class="reset-btn">Reset All</button>
     </div>
   </div>
-  
   <table>
     <thead>
       <tr>
-        <th style="width: 25%">Action</th>
-        <th style="width: 40%">Element ID</th>
-        <th style="width: 25%">Shortcuts</th>
-        <th style="width: 10%">Test</th>
+        <th style="width: 5%">#</th>
+        <th style="width: 45%" colspan="2">Name</th> <th style="width: 25%">Action</th>       <th style="width: 15%">Shortcut</th>
+        <th style="width: 10%"></th> 
       </tr>
     </thead>
-    <tbody id="settings-body">
-      </tbody>
+    <tbody id="settings-body"></tbody>
   </table>
-
   <script src="popup.js"></script>
 </body>
 </html>
