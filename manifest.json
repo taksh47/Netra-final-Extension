@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Netra - Universal Access",
-  "version": "13.0",
-  "description": "Professional Accessibility Tool with Visual Teach Mode",
+  "version": "2.0.0",
+  "description": "Professional accessibility tool enabling custom keyboard navigation for the visually impaired.",
   "permissions": [
     "activeTab",
     "scripting",
@@ -17,6 +17,15 @@
   },
   "action": {
     "default_popup": "popup.html"
+  },
+  "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Alt+Shift+N",
+        "mac": "Alt+Shift+N"
+      },
+      "description": "Open Netra Settings"
+    }
   },
   "content_scripts": [
     {
