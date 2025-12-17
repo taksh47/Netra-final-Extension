@@ -1,9 +1,8 @@
-// background.js - CONNECTION MANAGER & AUTO HEALER
+// background.js - AUTO HEALER
 
 chrome.runtime.onInstalled.addListener(async () => {
-  console.log("Netra: Service Worker Active. Injecting content scripts...");
-  
-  // Re-inject content script into all open tabs to prevent context invalidation
+  console.log("Netra: Updated. Healing tabs...");
+  // Re-inject content script into all open tabs to prevent errors
   const tabs = await chrome.tabs.query({ url: ["http://*/*", "https://*/*"] });
 
   for (const tab of tabs) {
@@ -13,7 +12,7 @@ chrome.runtime.onInstalled.addListener(async () => {
         files: ['content.js']
       });
     } catch (err) {
-      // Ignore errors on restricted pages (e.g., chrome:// URLs)
+      // Ignore errors on restricted pages
     }
   }
 });

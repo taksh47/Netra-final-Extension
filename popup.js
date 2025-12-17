@@ -1,4 +1,4 @@
-// popup.js - PROFESSIONAL UI & LOGIC
+// popup.js - V2.3 (A-Z VALIDATION)
 
 const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
 const modLabel = isMac ? 'Option' : 'Alt';
@@ -26,7 +26,9 @@ const I18N = {
         confirmLang: "Change language to Hindi?",
         langChanged: "Language changed to Hindi",
         saved: "Saved",
-        confirmDelete: "Delete?"
+        deleted: "Shortcut Deleted",
+        confirmDelete: "Delete?",
+        errorAZ: "Choose only letters from A to Z" // New Error Msg
     },
     hi: {
         title: "नेत्रा कॉन्फ़िगरेशन",
@@ -47,7 +49,9 @@ const I18N = {
         confirmLang: "भाषा अंग्रेजी में बदलें?",
         langChanged: "भाषा अंग्रेजी में बदल गई",
         saved: "सहेजा गया",
-        confirmDelete: "हटाएं?"
+        deleted: "शॉर्टकट हटा दिया गया",
+        confirmDelete: "हटाएं?",
+        errorAZ: "केवल A से Z तक के अक्षर चुनें" // New Error Msg
     }
 };
 
@@ -74,7 +78,7 @@ function toggleLanguage() {
         chrome.storage.sync.set({ netraLang: currentLang });
         applyLanguage();
         chrome.storage.sync.get(['userSettings'], (res) => buildUI(res.userSettings || {}));
-        speak(I18N[currentLang === 'en' ? 'hi' : 'en'].langChanged);
+        speak(I18N[currentLang].langChanged); // Fixed to use NEW language dict
     }
 }
 
@@ -94,7 +98,6 @@ function buildUI(allSettings) {
   tbody.innerHTML = ''; 
   const T = I18N[currentLang]; 
 
-  // Static Rows
   const staticRows = [
       { name: T.rowRead, desc: T.rowReadDesc, key: "?" },
       { name: T.rowKey, desc: T.rowKeyDesc, key: "T" },
@@ -109,14 +112,12 @@ function buildUI(allSettings) {
       tbody.appendChild(tr);
   });
 
-  // Add Button
   const addRow = document.createElement('tr');
   addRow.className = 'add-row';
   addRow.innerHTML = `<td colspan="6" class="add-cell" style="text-align:center;font-weight:bold;color:#2e7d32;padding:10px;cursor:pointer;">${T.addBtn}</td>`;
   addRow.addEventListener('click', addNewShortcut);
   tbody.appendChild(addRow);
 
-  // Data Rows
   let index = 1;
   Object.keys(allSettings).forEach(id => {
     const config = allSettings[id];
@@ -138,8 +139,22 @@ function buildUI(allSettings) {
 
 function attachListeners() {
   document.querySelectorAll('.key-input').forEach(input => {
-      input.addEventListener('input', (e) => saveSingleRow(e.target.dataset.id, 'char', e.target.value.toLowerCase()));
+      input.addEventListener('input', (e) => {
+          const rawChar = e.target.value;
+          
+          // VALIDATION: Only A-Z allowed
+          if (!/^[a-zA-Z]$/.test(rawChar) && rawChar !== "") {
+              e.target.value = ""; // Clear invalid input
+              showStatus(I18N[currentLang].errorAZ, true); // True = Error (Red)
+              speak(I18N[currentLang].errorAZ);
+              return;
+          }
+
+          const id = e.target.dataset.id;
+          saveSingleRow(id, 'char', rawChar.toLowerCase());
+      });
   });
+
   document.querySelectorAll('.label-input, .elm-input').forEach(input => {
       input.addEventListener('blur', (e) => {
           const field = e.target.classList.contains('label-input') ? 'label' : 'element';
@@ -161,14 +176,14 @@ function speak(text) {
     window.speechSynthesis.speak(msg);
 }
 
-function showStatus(msg) {
+function showStatus(msg, isError = false) {
     const el = document.getElementById('status');
     el.innerText = msg;
+    el.style.backgroundColor = isError ? "#d93025" : "#27ae60"; // Red for Error, Green for Success
     el.classList.add('show');
     setTimeout(() => el.classList.remove('show'), 2000);
 }
 
-// --- LOGIC: KEY STEALING & SAVE ---
 function saveSingleRow(id, field, value) {
     chrome.storage.sync.get(['userSettings'], (res) => {
         const s = res.userSettings || {};
@@ -223,7 +238,10 @@ function deleteRow(id) {
     chrome.storage.sync.get(['userSettings'], (res) => {
         const s = res.userSettings || {};
         delete s[id];
-        chrome.storage.sync.set({ userSettings: s }, () => buildUI(s));
+        chrome.storage.sync.set({ userSettings: s }, () => {
+            buildUI(s);
+            speak(I18N[currentLang].deleted);
+        });
     });
 }
 
